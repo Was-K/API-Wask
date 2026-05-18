@@ -1,0 +1,511 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  BUSINESS
+  SUPPLIER
+}
+
+enum UserStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  DISABLED
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum OperationalStatus {
+  ACTIVE
+  PAUSED
+  SUSPENDED
+}
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum InventoryMovementType {
+  INBOUND
+  OUTBOUND
+  ADJUSTMENT
+  RESERVATION
+  RELEASE
+}
+
+enum OrderStatus {
+  PENDING
+  APPROVED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum ShipmentStatus {
+  CREATED
+  IN_TRANSIT
+  DELAYED
+  DELIVERED
+  FAILED
+}
+
+enum NotificationType {
+  EMAIL
+  PUSH
+  IN_APP
+  OPERATIONAL_ALERT
+  STOCK_ALERT
+  ORDER_UPDATE
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  READ
+}
+
+enum PaymentStatus {
+  PENDING
+  AUTHORIZED
+  CAPTURED
+  FAILED
+  REFUNDED
+}
+
+model User {
+  id                 String              @id @default(uuid()) @db.Uuid
+  uuid               String              @unique @default(uuid()) @db.Uuid
+  firstName          String
+  lastName           String
+  email              String              @unique
+  phone              String?
+  password           String
+  role               UserRole
+  avatar             String?
+  companyId          String?             @db.Uuid
+  supplierId         String?             @db.Uuid
+  status             UserStatus          @default(PENDING)
+  isVerified         Boolean             @default(false)
+  lastLogin          DateTime?
+  version            Int                 @default(1)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  deletedAt          DateTime?
+  company            Business?           @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  supplier           Supplier?           @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  sessions           Session[]
+  auditLogs          AuditLog[]
+  passwordResets     PasswordResetToken[]
+  emailVerifications EmailVerificationToken[]
+  notifications      Notification[]
+  uploadedFiles      FileAsset[]
+
+  @@index([role, status])
+  @@index([companyId])
+  @@index([supplierId])
+  @@index([deletedAt])
+}
+
+model Session {
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @db.Uuid
+  refreshHash  String
+  userAgent    String?
+  ipAddress    String?
+  deviceName   String?
+  revokedAt    DateTime?
+  expiresAt    DateTime
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, usedAt])
+  @@index([expiresAt])
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, usedAt])
+}
+
+model Business {
+  id                 String              @id @default(uuid()) @db.Uuid
+  companyName        String
+  businessIdentifier String              @unique
+  fiscalData         Json?
+  address            String?
+  phone              String?
+  industry           String?
+  logo               String?
+  operationalStatus  OperationalStatus   @default(ACTIVE)
+  verificationStatus VerificationStatus  @default(PENDING)
+  version            Int                 @default(1)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  deletedAt          DateTime?
+  users              User[]
+  suppliers          BusinessSupplier[]
+  warehouses         Warehouse[]
+  orders             Order[]
+  analyticsSnapshots AnalyticsSnapshot[]
+
+  @@index([verificationStatus, operationalStatus])
+  @@index([deletedAt])
+}
+
+model Supplier {
+  id                 String              @id @default(uuid()) @db.Uuid
+  supplierName       String
+  businessIdentifier String              @unique
+  companyData        Json?
+  certifications     Json?
+  operationalRegions Json?
+  logisticsStatus    OperationalStatus   @default(ACTIVE)
+  rating             Decimal             @default(0) @db.Decimal(3, 2)
+  verificationLevel  VerificationStatus  @default(PENDING)
+  version            Int                 @default(1)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  deletedAt          DateTime?
+  users              User[]
+  businesses         BusinessSupplier[]
+  products           Product[]
+  orders             Order[]
+  shipments          Shipment[]
+  analyticsSnapshots AnalyticsSnapshot[]
+
+  @@index([verificationLevel, logisticsStatus])
+  @@index([rating])
+  @@index([deletedAt])
+}
+
+model BusinessSupplier {
+  id          String    @id @default(uuid()) @db.Uuid
+  businessId String    @db.Uuid
+  supplierId String    @db.Uuid
+  status      String    @default("ACTIVE")
+  terms       Json?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  supplier    Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, supplierId])
+  @@index([supplierId, status])
+}
+
+model Product {
+  id           String          @id @default(uuid()) @db.Uuid
+  sku          String
+  barcode      String?
+  name         String
+  description  String?
+  category     String
+  subcategory  String?
+  images       Json?
+  supplierId   String          @db.Uuid
+  minimumStock Int             @default(0)
+  maximumStock Int?
+  price        Decimal         @db.Decimal(14, 2)
+  currency     String          @default("USD")
+  dimensions   Json?
+  weight       Decimal?        @db.Decimal(10, 3)
+  status       ProductStatus   @default(DRAFT)
+  searchVector String?
+  version      Int             @default(1)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  deletedAt    DateTime?
+  supplier     Supplier        @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  inventory    InventoryItem[]
+  orderItems   OrderItem[]
+
+  @@unique([supplierId, sku])
+  @@index([barcode])
+  @@index([category, subcategory])
+  @@index([supplierId, status])
+  @@index([deletedAt])
+}
+
+model Warehouse {
+  id          String          @id @default(uuid()) @db.Uuid
+  businessId String?         @db.Uuid
+  supplierId String?         @db.Uuid
+  name        String
+  code        String
+  address     String?
+  region      String?
+  metadata    Json?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  deletedAt   DateTime?
+  business    Business?       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  inventory   InventoryItem[]
+
+  @@unique([businessId, code])
+  @@index([supplierId])
+  @@index([region])
+}
+
+model InventoryItem {
+  id              String              @id @default(uuid()) @db.Uuid
+  productId       String              @db.Uuid
+  warehouseId     String              @db.Uuid
+  availableStock  Int                 @default(0)
+  reservedStock   Int                 @default(0)
+  minimumStock    Int                 @default(0)
+  maximumStock    Int?
+  version         Int                 @default(1)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  deletedAt       DateTime?
+  product         Product             @relation(fields: [productId], references: [id], onDelete: Restrict)
+  warehouse       Warehouse           @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  movements       InventoryMovement[]
+  reservations    StockReservation[]
+
+  @@unique([productId, warehouseId])
+  @@index([warehouseId])
+  @@index([availableStock])
+}
+
+model InventoryMovement {
+  id              String                @id @default(uuid()) @db.Uuid
+  inventoryItemId String                @db.Uuid
+  type            InventoryMovementType
+  quantity        Int
+  reason          String?
+  referenceType   String?
+  referenceId     String?
+  actorUserId     String?               @db.Uuid
+  metadata        Json?
+  createdAt       DateTime              @default(now())
+  inventoryItem   InventoryItem         @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+
+  @@index([inventoryItemId, createdAt])
+  @@index([referenceType, referenceId])
+}
+
+model StockReservation {
+  id              String        @id @default(uuid()) @db.Uuid
+  inventoryItemId String        @db.Uuid
+  orderItemId     String?       @db.Uuid
+  quantity        Int
+  expiresAt       DateTime?
+  releasedAt      DateTime?
+  createdAt       DateTime      @default(now())
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  orderItem       OrderItem?    @relation(fields: [orderItemId], references: [id], onDelete: SetNull)
+
+  @@index([inventoryItemId, releasedAt])
+  @@index([expiresAt])
+}
+
+model Order {
+  id          String        @id @default(uuid()) @db.Uuid
+  orderNumber String        @unique
+  businessId  String        @db.Uuid
+  supplierId  String        @db.Uuid
+  status      OrderStatus   @default(PENDING)
+  subtotal    Decimal       @default(0) @db.Decimal(14, 2)
+  taxTotal    Decimal       @default(0) @db.Decimal(14, 2)
+  grandTotal  Decimal       @default(0) @db.Decimal(14, 2)
+  currency    String        @default("USD")
+  notes       String?
+  version     Int           @default(1)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  deletedAt   DateTime?
+  business    Business      @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  supplier    Supplier      @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  items       OrderItem[]
+  events      OrderEvent[]
+  shipments   Shipment[]
+  payments    Payment[]
+
+  @@index([businessId, status, createdAt])
+  @@index([supplierId, status, createdAt])
+  @@index([deletedAt])
+}
+
+model OrderItem {
+  id              String             @id @default(uuid()) @db.Uuid
+  orderId         String             @db.Uuid
+  productId       String             @db.Uuid
+  quantity        Int
+  unitPrice       Decimal            @db.Decimal(14, 2)
+  total           Decimal            @db.Decimal(14, 2)
+  createdAt       DateTime           @default(now())
+  order           Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product         Product            @relation(fields: [productId], references: [id], onDelete: Restrict)
+  reservations    StockReservation[]
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model OrderEvent {
+  id          String      @id @default(uuid()) @db.Uuid
+  orderId     String      @db.Uuid
+  status      OrderStatus
+  message     String?
+  actorUserId String?     @db.Uuid
+  metadata    Json?
+  createdAt   DateTime    @default(now())
+  order       Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt])
+}
+
+model Shipment {
+  id                  String         @id @default(uuid()) @db.Uuid
+  orderId             String         @db.Uuid
+  supplierId          String         @db.Uuid
+  trackingNumber      String?        @unique
+  carrier             String?
+  status              ShipmentStatus @default(CREATED)
+  estimatedDeliveryAt DateTime?
+  deliveredAt         DateTime?
+  route               Json?
+  metadata            Json?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  order               Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  supplier            Supplier       @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([supplierId, status])
+}
+
+model Payment {
+  id          String        @id @default(uuid()) @db.Uuid
+  orderId     String        @db.Uuid
+  provider    String
+  providerRef String?
+  amount      Decimal       @db.Decimal(14, 2)
+  currency    String        @default("USD")
+  status      PaymentStatus @default(PENDING)
+  metadata    Json?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  order       Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, status])
+  @@index([provider, providerRef])
+}
+
+model Notification {
+  id        String             @id @default(uuid()) @db.Uuid
+  userId    String             @db.Uuid
+  type      NotificationType
+  status    NotificationStatus @default(PENDING)
+  title     String
+  body      String
+  payload   Json?
+  readAt    DateTime?
+  sentAt    DateTime?
+  createdAt DateTime           @default(now())
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status, createdAt])
+  @@index([type, status])
+}
+
+model NotificationTemplate {
+  id        String   @id @default(uuid()) @db.Uuid
+  key       String   @unique
+  channel   String
+  subject   String?
+  body      String
+  locale    String   @default("en")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AuditLog {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String?  @db.Uuid
+  ipAddress      String?
+  userAgent      String?
+  actionType     String
+  entityAffected String
+  entityId       String?
+  before         Json?
+  after          Json?
+  metadata       Json?
+  createdAt      DateTime @default(now())
+  user           User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([entityAffected, entityId])
+  @@index([actionType, createdAt])
+}
+
+model AnalyticsSnapshot {
+  id          String    @id @default(uuid()) @db.Uuid
+  businessId  String?   @db.Uuid
+  supplierId  String?   @db.Uuid
+  metricKey   String
+  metricValue Decimal   @db.Decimal(18, 4)
+  dimensions  Json?
+  recordedAt  DateTime  @default(now())
+  business    Business? @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  supplier    Supplier? @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@index([metricKey, recordedAt])
+  @@index([businessId, metricKey, recordedAt])
+  @@index([supplierId, metricKey, recordedAt])
+}
+
+model FileAsset {
+  id          String   @id @default(uuid()) @db.Uuid
+  ownerUserId String?  @db.Uuid
+  bucket      String
+  key         String
+  url         String
+  mimeType    String
+  size        Int
+  checksum    String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  owner       User?    @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
+
+  @@index([ownerUserId, createdAt])
+  @@index([bucket, key])
+}
