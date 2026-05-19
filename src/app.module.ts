@@ -22,7 +22,6 @@ import { PaymentsModule } from './modules/payments/payments.module';
 import { ProductsModule } from './modules/products/products.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { SuppliersModule } from './modules/suppliers/suppliers.module';
-import { UploadsModule } from './modules/uploads/uploads.module';
 import { UsersModule } from './modules/users/users.module';
 
 @Module({
@@ -58,7 +57,6 @@ import { UsersModule } from './modules/users/users.module';
     NotificationsModule,
     AdminModule,
     PaymentsModule,
-    UploadsModule,
     DashboardModule,
     SettingsModule,
   ],
