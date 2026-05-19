@@ -16,6 +16,7 @@ export class AuditController {
 
   @Get()
   findRecent(@Query('take') take?: string) {
-    return this.auditService.findRecent(take ? Number(take) : 100);
+    const limit = take ? Math.min(Math.max(parseInt(take, 10) || 100, 1), 1000) : 100;
+    return this.auditService.findRecent(limit);
   }
 }

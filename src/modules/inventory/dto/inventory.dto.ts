@@ -49,6 +49,7 @@ export class StockMovementDto {
 
   @ApiProperty()
   @IsInt()
+  @Min(1)
   quantity!: number;
 
   @ApiPropertyOptional()

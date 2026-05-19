@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Post, Req, Res, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -47,7 +47,8 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Post('logout')
   logout(@CurrentUser() user: AuthenticatedUser) {
-    return this.authService.logout(user.sessionId ?? '');
+    if (!user.sessionId) throw new UnauthorizedException('No active session context');
+    return this.authService.logout(user.sessionId);
   }
 
   @ApiBearerAuth()

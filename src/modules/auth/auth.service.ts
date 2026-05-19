@@ -7,7 +7,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { User, UserRole, UserStatus } from '@prisma/client';
 import * as argon2 from 'argon2';
-import { randomBytes } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
 import { StringValue } from 'ms';
 import { PrismaService } from '../../common/database/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -67,25 +67,7 @@ export class AuthService {
       entityId: user.id,
     });
 
-    const safeUser: Omit<User, 'password'> = {
-      id: user.id,
-      uuid: user.uuid,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      email: user.email,
-      phone: user.phone,
-      role: user.role,
-      avatar: user.avatar,
-      companyId: user.companyId,
-      supplierId: user.supplierId,
-      status: user.status,
-      isVerified: user.isVerified,
-      lastLogin: user.lastLogin,
-      version: user.version,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-      deletedAt: user.deletedAt,
-    };
+    const { password: _pw, ...safeUser } = user;
     return safeUser;
   }
 
@@ -96,20 +78,19 @@ export class AuthService {
     const valid = await argon2.verify(user.password, dto.password);
     if (!valid) throw new UnauthorizedException('Invalid credentials');
 
-    const session = await this.prisma.session.create({
-      data: {
-        userId: user.id,
-        refreshHash: 'pending',
-        userAgent: context.userAgent,
-        ipAddress: context.ipAddress,
-        expiresAt: this.refreshExpiry(),
-      },
-    });
-    const tokens = await this.signTokens(user, session.id);
+    const sessionId = randomUUID();
+    const tokens = await this.signTokens(user, sessionId);
+
     await this.prisma.$transaction([
-      this.prisma.session.update({
-        where: { id: session.id },
-        data: { refreshHash: await argon2.hash(tokens.refreshToken) },
+      this.prisma.session.create({
+        data: {
+          id: sessionId,
+          userId: user.id,
+          refreshHash: await argon2.hash(tokens.refreshToken),
+          userAgent: context.userAgent,
+          ipAddress: context.ipAddress,
+          expiresAt: this.refreshExpiry(),
+        },
       }),
       this.prisma.user.update({ where: { id: user.id }, data: { lastLogin: new Date() } }),
     ]);
@@ -120,7 +101,7 @@ export class AuthService {
       userAgent: context.userAgent,
       actionType: 'AUTH_LOGIN',
       entityAffected: 'Session',
-      entityId: session.id,
+      entityId: sessionId,
     });
 
     return tokens;
@@ -211,7 +192,7 @@ export class AuthService {
     await this.prisma.$transaction([
       this.prisma.user.update({
         where: { id: tokenRecord.userId },
-        data: { isVerified: true },
+        data: { isVerified: true, status: UserStatus.ACTIVE },
       }),
       this.prisma.emailVerificationToken.update({
         where: { id: tokenRecord.id },

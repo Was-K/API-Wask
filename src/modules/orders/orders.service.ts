@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { randomBytes } from 'crypto';
 import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/database/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -28,7 +29,7 @@ export class OrdersService {
     const order = await this.prisma.$transaction(async (tx) => {
       const created = await tx.order.create({
         data: {
-          orderNumber: `WK-${Date.now()}`,
+          orderNumber: `WK-${Date.now()}-${randomBytes(3).toString('hex').toUpperCase()}`,
           businessId: dto.businessId,
           supplierId: dto.supplierId,
           notes: dto.notes,

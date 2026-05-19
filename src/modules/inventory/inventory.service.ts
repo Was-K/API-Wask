@@ -27,21 +27,26 @@ export class InventoryService {
     });
   }
 
-  findLowStock() {
+  async findLowStock() {
+    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
+      SELECT id FROM "InventoryItem"
+      WHERE "deletedAt" IS NULL AND "availableStock" <= "minimumStock"
+      ORDER BY "updatedAt" DESC LIMIT 100
+    `;
+    if (!rows.length) return [];
     return this.prisma.inventoryItem.findMany({
-      where: { deletedAt: null },
+      where: { id: { in: rows.map((r) => r.id) } },
       include: { product: true, warehouse: true },
       orderBy: { updatedAt: 'desc' },
-      take: 100,
     });
   }
 
   async moveStock(dto: StockMovementDto, actorUserId?: string) {
-    const item = await this.prisma.inventoryItem.findUniqueOrThrow({ where: { id: dto.inventoryItemId } });
-    const delta = this.stockDelta(dto.type, dto.quantity);
-    if (item.availableStock + delta < 0) throw new BadRequestException('Insufficient stock');
-
     const result = await this.prisma.$transaction(async (tx) => {
+      const item = await tx.inventoryItem.findUniqueOrThrow({ where: { id: dto.inventoryItemId } });
+      const delta = this.stockDelta(dto.type, dto.quantity);
+      if (item.availableStock + delta < 0) throw new BadRequestException('Insufficient stock');
+
       const updated = await tx.inventoryItem.update({
         where: { id: dto.inventoryItemId },
         data: { availableStock: { increment: delta }, version: { increment: 1 } },

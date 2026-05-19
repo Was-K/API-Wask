@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { IsOptional, IsString } from 'class-validator';
 
 export class CreateSupplierDto {
@@ -23,4 +23,4 @@ export class CreateSupplierDto {
   operationalRegions?: Record<string, unknown>;
 }
 
-export class UpdateSupplierDto extends CreateSupplierDto {}
+export class UpdateSupplierDto extends PartialType(CreateSupplierDto) {}

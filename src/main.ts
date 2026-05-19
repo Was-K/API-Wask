@@ -9,10 +9,16 @@ import { GlobalExceptionFilter } from './common/filters/global-exception.filter'
 import { ResponseTransformInterceptor } from './common/interceptors/response-transform.interceptor';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule, { cors: true });
+  const app = await NestFactory.create(AppModule);
   const config = app.get(ConfigService);
   const apiPrefix = config.getOrThrow<string>('API_PREFIX');
+  const frontendUrl = config.get<string>('FRONTEND_URL');
 
+  app.enableCors({
+    origin: frontendUrl ?? true,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  });
   app.use(helmet());
   app.use(cookieParser());
   app.setGlobalPrefix(apiPrefix);

@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { IsOptional, IsString } from 'class-validator';
 
 export class CreateBusinessDto {
@@ -26,4 +26,4 @@ export class CreateBusinessDto {
   industry?: string;
 }
 
-export class UpdateBusinessDto extends CreateBusinessDto {}
+export class UpdateBusinessDto extends PartialType(CreateBusinessDto) {}

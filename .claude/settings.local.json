@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(dir \"node_modules\\\\.prisma\\\\client\")",
+      "Bash(node -e \"const p = require\\('@prisma/client'\\); console.log\\(Object.keys\\(p\\).slice\\(0,20\\)\\)\")",
+      "Bash(node -e \"const {PrismaClient} = require\\('@prisma/client'\\); const p = new PrismaClient\\(\\); console.log\\('OK'\\)\")",
+      "Bash(NODE_TLS_REJECT_UNAUTHORIZED=0 npx prisma generate)"
+    ]
+  }
+}

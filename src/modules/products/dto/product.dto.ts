@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { ProductStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
 import { IsEnum, IsInt, IsNumber, IsOptional, IsString, Min } from 'class-validator';
@@ -70,4 +70,4 @@ export class ProductQueryDto {
   supplierId?: string;
 }
 
-export class UpdateProductDto extends CreateProductDto {}
+export class UpdateProductDto extends PartialType(CreateProductDto) {}
