@@ -24,6 +24,21 @@ export class CreateBusinessDto {
   @IsOptional()
   @IsString()
   industry?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  logo?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  fiscalData?: Record<string, unknown>;
 }
 
 export class UpdateBusinessDto extends PartialType(CreateBusinessDto) {}
+
+export class RejectBusinessDto {
+  @ApiProperty()
+  @IsString()
+  reason!: string;
+}

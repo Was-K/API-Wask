@@ -7,9 +7,14 @@ export class CreateShipmentDto {
   @IsString()
   orderId!: string;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'ID del negocio que despacha el pedido' })
   @IsString()
-  supplierId!: string;
+  businessId!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  deliveryUserId?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

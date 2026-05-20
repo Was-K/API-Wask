@@ -1,8 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { UserRole } from '@prisma/client';
-import { IsEmail, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
 
-export class RegisterDto {
+export class RegisterCustomerDto {
   @ApiProperty()
   @IsString()
   firstName!: string;
@@ -15,24 +14,66 @@ export class RegisterDto {
   @IsEmail()
   email!: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @ApiProperty({ minLength: 10 })
+  @IsString()
+  @MinLength(10)
+  password!: string;
+}
+
+export class RegisterBusinessOwnerDto {
   @ApiProperty()
+  @IsString()
+  firstName!: string;
+
+  @ApiProperty()
+  @IsString()
+  lastName!: string;
+
+  @ApiProperty()
+  @IsEmail()
+  email!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @ApiProperty({ minLength: 10 })
   @IsString()
   @MinLength(10)
   password!: string;
 
-  @ApiProperty({ enum: UserRole })
-  @IsEnum(UserRole)
-  role!: UserRole;
+  @ApiProperty()
+  @IsString()
+  companyName!: string;
+
+  @ApiProperty()
+  @IsString()
+  businessIdentifier!: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  companyId?: string;
+  address?: string;
+
+  @ApiPropertyOptional({ default: 'Licorería/Bodega' })
+  @IsOptional()
+  @IsString()
+  industry?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  fiscalData?: Record<string, unknown>;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  supplierId?: string;
+  logo?: string;
 }
 
 export class LoginDto {
@@ -62,7 +103,7 @@ export class ResetPasswordDto {
   @IsString()
   token!: string;
 
-  @ApiProperty()
+  @ApiProperty({ minLength: 10 })
   @IsString()
   @MinLength(10)
   password!: string;
@@ -79,7 +120,7 @@ export class ChangePasswordDto {
   @IsString()
   currentPassword!: string;
 
-  @ApiProperty()
+  @ApiProperty({ minLength: 10 })
   @IsString()
   @MinLength(10)
   nextPassword!: string;

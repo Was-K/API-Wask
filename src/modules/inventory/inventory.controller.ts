@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -17,25 +17,47 @@ export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
 
   @Post('warehouses')
-  @Roles(UserRole.ADMIN, UserRole.BUSINESS, UserRole.SUPPLIER)
-  createWarehouse(@Body() dto: CreateWarehouseDto) {
-    return this.inventoryService.createWarehouse(dto);
+  @Roles(UserRole.BUSINESS_OWNER)
+  @ApiOperation({ summary: 'Crear almacén para el negocio del BUSINESS_OWNER autenticado' })
+  createWarehouse(@Body() dto: CreateWarehouseDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.inventoryService.createWarehouse(dto, user);
+  }
+
+  @Post('warehouses/admin')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'ADMIN crea almacén para un negocio específico' })
+  createWarehouseAdmin(
+    @Body() dto: CreateWarehouseDto,
+    @Query('businessId') businessId: string,
+  ) {
+    return this.inventoryService.createWarehouseAdmin(dto, businessId);
   }
 
   @Post('items')
-  @Roles(UserRole.ADMIN, UserRole.BUSINESS, UserRole.SUPPLIER)
-  upsertItem(@Body() dto: UpsertInventoryDto) {
-    return this.inventoryService.upsertItem(dto);
+  @Roles(UserRole.ADMIN, UserRole.BUSINESS_OWNER)
+  @ApiOperation({ summary: 'Crear o actualizar stock de un producto en un almacén' })
+  upsertItem(@Body() dto: UpsertInventoryDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.inventoryService.upsertItem(dto, user);
   }
 
   @Post('movements')
-  @Roles(UserRole.ADMIN, UserRole.BUSINESS, UserRole.SUPPLIER)
+  @Roles(UserRole.ADMIN, UserRole.BUSINESS_OWNER)
+  @ApiOperation({ summary: 'Registrar movimiento de inventario' })
   moveStock(@Body() dto: StockMovementDto, @CurrentUser() user: AuthenticatedUser) {
-    return this.inventoryService.moveStock(dto, user.sub);
+    return this.inventoryService.moveStock(dto, user);
+  }
+
+  @Get('my-inventory')
+  @Roles(UserRole.BUSINESS_OWNER)
+  @ApiOperation({ summary: 'Ver inventario completo del negocio autenticado' })
+  findMyInventory(@CurrentUser() user: AuthenticatedUser) {
+    return this.inventoryService.findMyInventory(user);
   }
 
   @Get('low-stock')
-  findLowStock() {
-    return this.inventoryService.findLowStock();
+  @Roles(UserRole.ADMIN, UserRole.BUSINESS_OWNER)
+  @ApiOperation({ summary: 'Ver productos con stock bajo. BUSINESS_OWNER solo su negocio.' })
+  findLowStock(@CurrentUser() user: AuthenticatedUser) {
+    return this.inventoryService.findLowStock(user);
   }
 }

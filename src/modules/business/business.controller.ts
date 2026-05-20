@@ -1,11 +1,13 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { UserRole } from '@prisma/client';
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { UserRole, VerificationStatus } from '@prisma/client';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { AuthenticatedUser } from '../../common/types/authenticated-request';
 import { BusinessService } from './business.service';
-import { CreateBusinessDto, UpdateBusinessDto } from './dto/business.dto';
+import { CreateBusinessDto, RejectBusinessDto, UpdateBusinessDto } from './dto/business.dto';
 
 @ApiTags('Business')
 @ApiBearerAuth()
@@ -16,24 +18,55 @@ export class BusinessController {
 
   @Post()
   @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Crear negocio manualmente (solo ADMIN)' })
   create(@Body() dto: CreateBusinessDto) {
     return this.businessService.create(dto);
   }
 
   @Get()
-  findMany() {
-    return this.businessService.findMany();
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Listar negocios (solo ADMIN). Filtrar por verificationStatus o búsqueda' })
+  @ApiQuery({ name: 'verificationStatus', enum: VerificationStatus, required: false })
+  @ApiQuery({ name: 'q', required: false })
+  findMany(
+    @Query('verificationStatus') verificationStatus?: VerificationStatus,
+    @Query('q') q?: string,
+  ) {
+    return this.businessService.findMany(verificationStatus, q);
+  }
+
+  @Get('my-business')
+  @Roles(UserRole.BUSINESS_OWNER)
+  @ApiOperation({ summary: 'Ver el negocio del BUSINESS_OWNER autenticado' })
+  findMyBusiness(@CurrentUser() user: AuthenticatedUser) {
+    return this.businessService.findMyBusiness(user.sub);
+  }
+
+  @Patch('my-business')
+  @Roles(UserRole.BUSINESS_OWNER)
+  @ApiOperation({ summary: 'Editar el negocio del BUSINESS_OWNER autenticado' })
+  updateMyBusiness(@CurrentUser() user: AuthenticatedUser, @Body() dto: UpdateBusinessDto) {
+    return this.businessService.updateMyBusiness(user.sub, dto);
   }
 
   @Patch(':id')
-  @Roles(UserRole.ADMIN, UserRole.BUSINESS)
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Editar cualquier negocio (solo ADMIN)' })
   update(@Param('id') id: string, @Body() dto: UpdateBusinessDto) {
     return this.businessService.update(id, dto);
   }
 
   @Post(':id/approve')
   @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Aprobar negocio y activar sus usuarios BUSINESS_OWNER' })
   approve(@Param('id') id: string) {
     return this.businessService.approve(id);
+  }
+
+  @Post(':id/reject')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Rechazar negocio con motivo' })
+  reject(@Param('id') id: string, @Body() dto: RejectBusinessDto) {
+    return this.businessService.reject(id, dto);
   }
 }

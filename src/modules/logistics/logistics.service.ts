@@ -22,7 +22,10 @@ export class LogisticsService {
 
   findShipments() {
     return this.prisma.shipment.findMany({
-      include: { order: true, supplier: { select: { id: true, supplierName: true } } },
+      include: {
+        order: { select: { id: true, orderNumber: true, status: true } },
+        business: { select: { id: true, companyName: true } },
+      },
       orderBy: { createdAt: 'desc' },
       take: 100,
     });

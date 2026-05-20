@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
-import { ProductStatus } from '@prisma/client';
+import { ProductApprovalStatus, ProductStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
 import { IsEnum, IsInt, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
@@ -15,10 +15,6 @@ export class CreateProductDto {
   @ApiProperty()
   @IsString()
   category!: string;
-
-  @ApiProperty()
-  @IsString()
-  supplierId!: string;
 
   @ApiProperty()
   @Type(() => Number)
@@ -47,11 +43,38 @@ export class CreateProductDto {
   @Min(0)
   minimumStock?: number;
 
-  @ApiPropertyOptional({ enum: ProductStatus })
+  @ApiPropertyOptional()
   @IsOptional()
-  @IsEnum(ProductStatus)
-  status?: ProductStatus;
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  maximumStock?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  brand?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  volumeMl?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  alcoholPercentage?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  images?: string[];
 }
+
+export class UpdateProductDto extends PartialType(CreateProductDto) {}
 
 export class ProductQueryDto {
   @ApiPropertyOptional()
@@ -64,10 +87,24 @@ export class ProductQueryDto {
   @IsString()
   category?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'Solo ADMIN puede filtrar por businessId ajeno' })
   @IsOptional()
   @IsString()
-  supplierId?: string;
+  businessId?: string;
+
+  @ApiPropertyOptional({ enum: ProductStatus })
+  @IsOptional()
+  @IsEnum(ProductStatus)
+  status?: ProductStatus;
+
+  @ApiPropertyOptional({ enum: ProductApprovalStatus })
+  @IsOptional()
+  @IsEnum(ProductApprovalStatus)
+  approvalStatus?: ProductApprovalStatus;
 }
 
-export class UpdateProductDto extends PartialType(CreateProductDto) {}
+export class RejectProductDto {
+  @ApiProperty()
+  @IsString()
+  reason!: string;
+}

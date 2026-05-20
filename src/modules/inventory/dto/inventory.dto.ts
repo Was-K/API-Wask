@@ -14,7 +14,12 @@ export class CreateWarehouseDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  businessId?: string;
+  address?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  region?: string;
 }
 
 export class UpsertInventoryDto {

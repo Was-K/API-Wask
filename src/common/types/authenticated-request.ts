@@ -5,8 +5,7 @@ export interface AuthenticatedUser {
   sub: string;
   email: string;
   role: UserRole;
-  companyId?: string | null;
-  supplierId?: string | null;
+  businessId?: string | null;
   sessionId?: string;
 }
 

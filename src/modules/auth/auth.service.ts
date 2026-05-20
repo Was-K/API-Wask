@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { User, UserRole, UserStatus } from '@prisma/client';
+import { Prisma, User, UserRole, UserStatus, VerificationStatus } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { randomBytes, randomUUID } from 'crypto';
 import { StringValue } from 'ms';
@@ -14,7 +14,8 @@ import { AuditService } from '../audit/audit.service';
 import {
   ChangePasswordDto,
   LoginDto,
-  RegisterDto,
+  RegisterBusinessOwnerDto,
+  RegisterCustomerDto,
   ResetPasswordDto,
   VerifyEmailDto,
 } from './dto/auth.dto';
@@ -38,8 +39,8 @@ export class AuthService {
     private readonly audit: AuditService,
   ) {}
 
-  async register(dto: RegisterDto, context: ClientContext): Promise<Omit<User, 'password'>> {
-    const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
+  async registerCustomer(dto: RegisterCustomerDto, context: ClientContext) {
+    const existing = await this.prisma.user.findUnique({ where: { email: dto.email.toLowerCase() } });
     if (existing) throw new BadRequestException('Email is already registered');
 
     const password = await argon2.hash(dto.password);
@@ -48,21 +49,19 @@ export class AuthService {
         firstName: dto.firstName,
         lastName: dto.lastName,
         email: dto.email.toLowerCase(),
+        phone: dto.phone,
         password,
-        role: dto.role,
-        companyId: dto.role === UserRole.BUSINESS ? dto.companyId : undefined,
-        supplierId: dto.role === UserRole.SUPPLIER ? dto.supplierId : undefined,
-        status: dto.role === UserRole.ADMIN ? UserStatus.ACTIVE : UserStatus.PENDING,
-        isVerified: dto.role === UserRole.ADMIN,
+        role: UserRole.CUSTOMER,
+        status: UserStatus.ACTIVE,
+        isVerified: true,
       },
     });
 
-    await this.issueEmailVerification(user.id);
     await this.audit.record({
       userId: user.id,
       ipAddress: context.ipAddress,
       userAgent: context.userAgent,
-      actionType: 'AUTH_REGISTER',
+      actionType: 'AUTH_REGISTER_CUSTOMER',
       entityAffected: 'User',
       entityId: user.id,
     });
@@ -71,10 +70,74 @@ export class AuthService {
     return safeUser;
   }
 
+  async registerBusinessOwner(dto: RegisterBusinessOwnerDto, context: ClientContext) {
+    const existingEmail = await this.prisma.user.findUnique({ where: { email: dto.email.toLowerCase() } });
+    if (existingEmail) throw new BadRequestException('Email is already registered');
+
+    const existingBiz = await this.prisma.business.findUnique({ where: { businessIdentifier: dto.businessIdentifier } });
+    if (existingBiz) throw new BadRequestException('Business identifier is already registered');
+
+    const password = await argon2.hash(dto.password);
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const business = await tx.business.create({
+        data: {
+          companyName: dto.companyName,
+          businessIdentifier: dto.businessIdentifier,
+          address: dto.address,
+          industry: dto.industry ?? 'Licorería/Bodega',
+          fiscalData: dto.fiscalData as Prisma.InputJsonValue | undefined,
+          logo: dto.logo,
+          verificationStatus: VerificationStatus.PENDING,
+        },
+      });
+
+      const user = await tx.user.create({
+        data: {
+          firstName: dto.firstName,
+          lastName: dto.lastName,
+          email: dto.email.toLowerCase(),
+          phone: dto.phone,
+          password,
+          role: UserRole.BUSINESS_OWNER,
+          status: UserStatus.PENDING,
+          isVerified: false,
+          businessId: business.id,
+        },
+      });
+
+      return { user, business };
+    });
+
+    await this.audit.record({
+      userId: result.user.id,
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent,
+      actionType: 'AUTH_REGISTER_BUSINESS_OWNER',
+      entityAffected: 'User',
+      entityId: result.user.id,
+      metadata: { businessId: result.business.id },
+    });
+
+    return {
+      message: 'Solicitud de negocio enviada. Un administrador revisará tu cuenta.',
+      userId: result.user.id,
+      businessId: result.business.id,
+      status: 'PENDING',
+    };
+  }
+
   async login(dto: LoginDto, context: ClientContext): Promise<TokenPair> {
     const user = await this.prisma.user.findUnique({ where: { email: dto.email.toLowerCase() } });
     if (!user || user.deletedAt) throw new UnauthorizedException('Invalid credentials');
-    if (user.status !== UserStatus.ACTIVE) throw new UnauthorizedException('User is not active');
+
+    if (user.status === UserStatus.PENDING) {
+      throw new UnauthorizedException('Tu cuenta está pendiente de aprobación por el administrador');
+    }
+    if (user.status !== UserStatus.ACTIVE) {
+      throw new UnauthorizedException('Tu cuenta no está activa. Contacta al administrador');
+    }
+
     const valid = await argon2.verify(user.password, dto.password);
     if (!valid) throw new UnauthorizedException('Invalid credentials');
 
@@ -236,8 +299,7 @@ export class AuthService {
       sub: user.id,
       email: user.email,
       role: user.role,
-      companyId: user.companyId,
-      supplierId: user.supplierId,
+      businessId: user.businessId,
       sessionId,
     };
     const accessToken = await this.jwt.signAsync(payload, {

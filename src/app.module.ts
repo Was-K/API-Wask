@@ -21,7 +21,6 @@ import { OrdersModule } from './modules/orders/orders.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { ProductsModule } from './modules/products/products.module';
 import { SettingsModule } from './modules/settings/settings.module';
-import { SuppliersModule } from './modules/suppliers/suppliers.module';
 import { UsersModule } from './modules/users/users.module';
 
 @Module({
@@ -48,7 +47,6 @@ import { UsersModule } from './modules/users/users.module';
     AuthModule,
     UsersModule,
     BusinessModule,
-    SuppliersModule,
     ProductsModule,
     InventoryModule,
     OrdersModule,

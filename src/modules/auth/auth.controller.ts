@@ -1,5 +1,5 @@
 import { Body, Controller, Post, Req, Res, UnauthorizedException, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
@@ -10,7 +10,8 @@ import {
   ChangePasswordDto,
   ForgotPasswordDto,
   LoginDto,
-  RegisterDto,
+  RegisterBusinessOwnerDto,
+  RegisterCustomerDto,
   ResetPasswordDto,
   TokenDto,
   VerifyEmailDto,
@@ -22,9 +23,17 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Public()
-  @Post('register')
-  register(@Body() dto: RegisterDto, @Req() request: Request) {
-    return this.authService.register(dto, this.clientContext(request));
+  @Post('register-customer')
+  @ApiOperation({ summary: 'Registro de cliente final (app móvil)' })
+  registerCustomer(@Body() dto: RegisterCustomerDto, @Req() request: Request) {
+    return this.authService.registerCustomer(dto, this.clientContext(request));
+  }
+
+  @Public()
+  @Post('register-business-owner')
+  @ApiOperation({ summary: 'Solicitud de registro de negocio (app web). Queda PENDING hasta aprobación admin.' })
+  registerBusinessOwner(@Body() dto: RegisterBusinessOwnerDto, @Req() request: Request) {
+    return this.authService.registerBusinessOwner(dto, this.clientContext(request));
   }
 
   @Public()

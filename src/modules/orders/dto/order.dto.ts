@@ -15,13 +15,9 @@ export class CreateOrderItemDto {
 }
 
 export class CreateOrderDto {
-  @ApiProperty()
+  @ApiProperty({ description: 'ID del negocio al que se compra' })
   @IsString()
   businessId!: string;
-
-  @ApiProperty()
-  @IsString()
-  supplierId!: string;
 
   @ApiProperty({ type: [CreateOrderItemDto] })
   @IsArray()
@@ -33,6 +29,11 @@ export class CreateOrderDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  deliveryAddress?: string;
 }
 
 export class UpdateOrderStatusDto {

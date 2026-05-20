@@ -1,5 +1,5 @@
 import { Controller, Get, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -15,7 +15,8 @@ export class AdminController {
   constructor(private readonly analyticsService: AnalyticsService) {}
 
   @Get('overview')
+  @ApiOperation({ summary: 'Resumen global de la plataforma para el panel admin' })
   overview() {
-    return this.analyticsService.dashboardSummary();
+    return this.analyticsService.adminOverview();
   }
 }

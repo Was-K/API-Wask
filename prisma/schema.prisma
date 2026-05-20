@@ -9,8 +9,9 @@ datasource db {
 
 enum UserRole {
   ADMIN
-  BUSINESS
-  SUPPLIER
+  CUSTOMER
+  BUSINESS_OWNER
+  DELIVERY
 }
 
 enum UserStatus {
@@ -36,6 +37,12 @@ enum ProductStatus {
   DRAFT
   ACTIVE
   ARCHIVED
+}
+
+enum ProductApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum InventoryMovementType {
@@ -88,26 +95,25 @@ enum PaymentStatus {
 }
 
 model User {
-  id                 String              @id @default(uuid()) @db.Uuid
-  uuid               String              @unique @default(uuid()) @db.Uuid
-  firstName          String
-  lastName           String
-  email              String              @unique
-  phone              String?
-  password           String
-  role               UserRole
-  avatar             String?
-  companyId          String?             @db.Uuid
-  supplierId         String?             @db.Uuid
-  status             UserStatus          @default(PENDING)
-  isVerified         Boolean             @default(false)
-  lastLogin          DateTime?
-  version            Int                 @default(1)
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-  deletedAt          DateTime?
-  company            Business?           @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  supplier           Supplier?           @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  id         String     @id @default(uuid()) @db.Uuid
+  uuid       String     @unique @default(uuid()) @db.Uuid
+  firstName  String
+  lastName   String
+  email      String     @unique
+  phone      String?
+  password   String
+  role       UserRole
+  avatar     String?
+  businessId String?    @db.Uuid
+  status     UserStatus @default(PENDING)
+  isVerified Boolean    @default(false)
+  lastLogin  DateTime?
+  version    Int        @default(1)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  deletedAt  DateTime?
+
+  business           Business?                @relation(fields: [businessId], references: [id], onDelete: SetNull)
   sessions           Session[]
   auditLogs          AuditLog[]
   passwordResets     PasswordResetToken[]
@@ -115,24 +121,26 @@ model User {
   notifications      Notification[]
   uploadedFiles      FileAsset[]
 
+  customerOrders Order[] @relation("CustomerOrders")
+  deliveryOrders Order[] @relation("DeliveryOrders")
+
   @@index([role, status])
-  @@index([companyId])
-  @@index([supplierId])
+  @@index([businessId])
   @@index([deletedAt])
 }
 
 model Session {
-  id           String    @id @default(uuid()) @db.Uuid
-  userId       String    @db.Uuid
-  refreshHash  String
-  userAgent    String?
-  ipAddress    String?
-  deviceName   String?
-  revokedAt    DateTime?
-  expiresAt    DateTime
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @db.Uuid
+  refreshHash String
+  userAgent   String?
+  ipAddress   String?
+  deviceName  String?
+  revokedAt   DateTime?
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, revokedAt])
   @@index([expiresAt])
@@ -164,141 +172,113 @@ model EmailVerificationToken {
 }
 
 model Business {
-  id                 String              @id @default(uuid()) @db.Uuid
+  id                 String             @id @default(uuid()) @db.Uuid
   companyName        String
-  businessIdentifier String              @unique
+  businessIdentifier String             @unique
   fiscalData         Json?
   address            String?
   phone              String?
   industry           String?
   logo               String?
-  operationalStatus  OperationalStatus   @default(ACTIVE)
-  verificationStatus VerificationStatus  @default(PENDING)
-  version            Int                 @default(1)
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
+  latitude           Decimal?           @db.Decimal(10, 7)
+  longitude          Decimal?           @db.Decimal(10, 7)
+  operationalStatus  OperationalStatus  @default(ACTIVE)
+  verificationStatus VerificationStatus @default(PENDING)
+  rejectionReason    String?
+  version            Int                @default(1)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
   deletedAt          DateTime?
+
   users              User[]
-  suppliers          BusinessSupplier[]
+  products           Product[]
   warehouses         Warehouse[]
   orders             Order[]
+  shipments          Shipment[]
   analyticsSnapshots AnalyticsSnapshot[]
 
   @@index([verificationStatus, operationalStatus])
   @@index([deletedAt])
 }
 
-model Supplier {
-  id                 String              @id @default(uuid()) @db.Uuid
-  supplierName       String
-  businessIdentifier String              @unique
-  companyData        Json?
-  certifications     Json?
-  operationalRegions Json?
-  logisticsStatus    OperationalStatus   @default(ACTIVE)
-  rating             Decimal             @default(0) @db.Decimal(3, 2)
-  verificationLevel  VerificationStatus  @default(PENDING)
-  version            Int                 @default(1)
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-  deletedAt          DateTime?
-  users              User[]
-  businesses         BusinessSupplier[]
-  products           Product[]
-  orders             Order[]
-  shipments          Shipment[]
-  analyticsSnapshots AnalyticsSnapshot[]
-
-  @@index([verificationLevel, logisticsStatus])
-  @@index([rating])
-  @@index([deletedAt])
-}
-
-model BusinessSupplier {
-  id          String    @id @default(uuid()) @db.Uuid
-  businessId String    @db.Uuid
-  supplierId String    @db.Uuid
-  status      String    @default("ACTIVE")
-  terms       Json?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  deletedAt   DateTime?
-  business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  supplier    Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
-
-  @@unique([businessId, supplierId])
-  @@index([supplierId, status])
-}
-
 model Product {
-  id           String          @id @default(uuid()) @db.Uuid
-  sku          String
-  barcode      String?
-  name         String
-  description  String?
-  category     String
-  subcategory  String?
-  images       Json?
-  supplierId   String          @db.Uuid
-  minimumStock Int             @default(0)
-  maximumStock Int?
-  price        Decimal         @db.Decimal(14, 2)
-  currency     String          @default("USD")
-  dimensions   Json?
-  weight       Decimal?        @db.Decimal(10, 3)
-  status       ProductStatus   @default(DRAFT)
-  searchVector String?
-  version      Int             @default(1)
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
-  deletedAt    DateTime?
-  supplier     Supplier        @relation(fields: [supplierId], references: [id], onDelete: Restrict)
-  inventory    InventoryItem[]
-  orderItems   OrderItem[]
+  id                String                @id @default(uuid()) @db.Uuid
+  sku               String
+  barcode           String?
+  name              String
+  description       String?
+  category          String
+  subcategory       String?
+  images            Json?
+  businessId        String                @db.Uuid
+  minimumStock      Int                   @default(0)
+  maximumStock      Int?
+  price             Decimal               @db.Decimal(14, 2)
+  currency          String                @default("PEN")
+  dimensions        Json?
+  weight            Decimal?              @db.Decimal(10, 3)
+  brand             String?
+  volumeMl          Int?
+  alcoholPercentage Decimal?              @db.Decimal(5, 2)
+  status            ProductStatus         @default(DRAFT)
+  approvalStatus    ProductApprovalStatus @default(PENDING)
+  rejectionReason   String?
+  approvedAt        DateTime?
+  approvedById      String?               @db.Uuid
+  searchVector      String?
+  version           Int                   @default(1)
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  deletedAt         DateTime?
 
-  @@unique([supplierId, sku])
+  business   Business        @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  inventory  InventoryItem[]
+  orderItems OrderItem[]
+
+  @@unique([businessId, sku])
   @@index([barcode])
   @@index([category, subcategory])
-  @@index([supplierId, status])
+  @@index([businessId, status])
+  @@index([approvalStatus])
   @@index([deletedAt])
 }
 
 model Warehouse {
-  id          String          @id @default(uuid()) @db.Uuid
-  businessId String?         @db.Uuid
-  supplierId String?         @db.Uuid
-  name        String
-  code        String
-  address     String?
-  region      String?
-  metadata    Json?
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
-  deletedAt   DateTime?
-  business    Business?       @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  inventory   InventoryItem[]
+  id         String    @id @default(uuid()) @db.Uuid
+  businessId String    @db.Uuid
+  name       String
+  code       String
+  address    String?
+  region     String?
+  metadata   Json?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+
+  business  Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  inventory InventoryItem[]
 
   @@unique([businessId, code])
-  @@index([supplierId])
   @@index([region])
 }
 
 model InventoryItem {
-  id              String              @id @default(uuid()) @db.Uuid
-  productId       String              @db.Uuid
-  warehouseId     String              @db.Uuid
-  availableStock  Int                 @default(0)
-  reservedStock   Int                 @default(0)
-  minimumStock    Int                 @default(0)
-  maximumStock    Int?
-  version         Int                 @default(1)
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
-  deletedAt       DateTime?
-  product         Product             @relation(fields: [productId], references: [id], onDelete: Restrict)
-  warehouse       Warehouse           @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
-  movements       InventoryMovement[]
-  reservations    StockReservation[]
+  id             String    @id @default(uuid()) @db.Uuid
+  productId      String    @db.Uuid
+  warehouseId    String    @db.Uuid
+  availableStock Int       @default(0)
+  reservedStock  Int       @default(0)
+  minimumStock   Int       @default(0)
+  maximumStock   Int?
+  version        Int       @default(1)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  product      Product             @relation(fields: [productId], references: [id], onDelete: Restrict)
+  warehouse    Warehouse           @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  movements    InventoryMovement[]
+  reservations StockReservation[]
 
   @@unique([productId, warehouseId])
   @@index([warehouseId])
@@ -338,43 +318,51 @@ model StockReservation {
 }
 
 model Order {
-  id          String        @id @default(uuid()) @db.Uuid
-  orderNumber String        @unique
-  businessId  String        @db.Uuid
-  supplierId  String        @db.Uuid
-  status      OrderStatus   @default(PENDING)
-  subtotal    Decimal       @default(0) @db.Decimal(14, 2)
-  taxTotal    Decimal       @default(0) @db.Decimal(14, 2)
-  grandTotal  Decimal       @default(0) @db.Decimal(14, 2)
-  currency    String        @default("USD")
-  notes       String?
-  version     Int           @default(1)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  deletedAt   DateTime?
-  business    Business      @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  supplier    Supplier      @relation(fields: [supplierId], references: [id], onDelete: Restrict)
-  items       OrderItem[]
-  events      OrderEvent[]
-  shipments   Shipment[]
-  payments    Payment[]
+  id              String      @id @default(uuid()) @db.Uuid
+  orderNumber     String      @unique
+  customerId      String      @db.Uuid
+  businessId      String      @db.Uuid
+  deliveryUserId  String?     @db.Uuid
+  status          OrderStatus @default(PENDING)
+  subtotal        Decimal     @default(0) @db.Decimal(14, 2)
+  deliveryFee     Decimal     @default(0) @db.Decimal(14, 2)
+  taxTotal        Decimal     @default(0) @db.Decimal(14, 2)
+  grandTotal      Decimal     @default(0) @db.Decimal(14, 2)
+  currency        String      @default("PEN")
+  notes           String?
+  deliveryAddress String?
+  version         Int         @default(1)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  deletedAt       DateTime?
 
+  customer     User     @relation("CustomerOrders", fields: [customerId], references: [id], onDelete: Restrict)
+  business     Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  deliveryUser User?    @relation("DeliveryOrders", fields: [deliveryUserId], references: [id], onDelete: SetNull)
+
+  items     OrderItem[]
+  events    OrderEvent[]
+  shipments Shipment[]
+  payments  Payment[]
+
+  @@index([customerId, status, createdAt])
   @@index([businessId, status, createdAt])
-  @@index([supplierId, status, createdAt])
+  @@index([deliveryUserId, status, createdAt])
   @@index([deletedAt])
 }
 
 model OrderItem {
-  id              String             @id @default(uuid()) @db.Uuid
-  orderId         String             @db.Uuid
-  productId       String             @db.Uuid
-  quantity        Int
-  unitPrice       Decimal            @db.Decimal(14, 2)
-  total           Decimal            @db.Decimal(14, 2)
-  createdAt       DateTime           @default(now())
-  order           Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product         Product            @relation(fields: [productId], references: [id], onDelete: Restrict)
-  reservations    StockReservation[]
+  id        String   @id @default(uuid()) @db.Uuid
+  orderId   String   @db.Uuid
+  productId String   @db.Uuid
+  quantity  Int
+  unitPrice Decimal  @db.Decimal(14, 2)
+  total     Decimal  @db.Decimal(14, 2)
+  createdAt DateTime @default(now())
+
+  order        Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product      Product            @relation(fields: [productId], references: [id], onDelete: Restrict)
+  reservations StockReservation[]
 
   @@index([orderId])
   @@index([productId])
@@ -396,7 +384,8 @@ model OrderEvent {
 model Shipment {
   id                  String         @id @default(uuid()) @db.Uuid
   orderId             String         @db.Uuid
-  supplierId          String         @db.Uuid
+  businessId          String         @db.Uuid
+  deliveryUserId      String?        @db.Uuid
   trackingNumber      String?        @unique
   carrier             String?
   status              ShipmentStatus @default(CREATED)
@@ -406,11 +395,13 @@ model Shipment {
   metadata            Json?
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
-  order               Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  supplier            Supplier       @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+
+  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
 
   @@index([orderId])
-  @@index([supplierId, status])
+  @@index([businessId, status])
+  @@index([deliveryUserId, status])
 }
 
 model Payment {
@@ -419,7 +410,7 @@ model Payment {
   provider    String
   providerRef String?
   amount      Decimal       @db.Decimal(14, 2)
-  currency    String        @default("USD")
+  currency    String        @default("PEN")
   status      PaymentStatus @default(PENDING)
   metadata    Json?
   createdAt   DateTime      @default(now())
@@ -453,7 +444,7 @@ model NotificationTemplate {
   channel   String
   subject   String?
   body      String
-  locale    String   @default("en")
+  locale    String   @default("es")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -480,17 +471,14 @@ model AuditLog {
 model AnalyticsSnapshot {
   id          String    @id @default(uuid()) @db.Uuid
   businessId  String?   @db.Uuid
-  supplierId  String?   @db.Uuid
   metricKey   String
   metricValue Decimal   @db.Decimal(18, 4)
   dimensions  Json?
   recordedAt  DateTime  @default(now())
   business    Business? @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  supplier    Supplier? @relation(fields: [supplierId], references: [id], onDelete: Cascade)
 
   @@index([metricKey, recordedAt])
   @@index([businessId, metricKey, recordedAt])
-  @@index([supplierId, metricKey, recordedAt])
 }
 
 model FileAsset {
