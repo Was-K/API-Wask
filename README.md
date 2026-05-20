@@ -45,3 +45,6 @@ The REST API is versioned under `/api/v1`.
 Use managed PostgreSQL and Redis, rotate JWT secrets through your secret manager, enable TLS on ingress,
 run `prisma migrate deploy` during release, and keep MinIO only for local development unless it is deployed
 as a hardened S3-compatible service.
+
+
+password: ChangeMe123!

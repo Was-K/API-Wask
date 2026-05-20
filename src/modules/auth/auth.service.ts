@@ -71,14 +71,97 @@ export class AuthService {
   }
 
   async registerBusinessOwner(dto: RegisterBusinessOwnerDto, context: ClientContext) {
-    const existingEmail = await this.prisma.user.findUnique({ where: { email: dto.email.toLowerCase() } });
-    if (existingEmail) throw new BadRequestException('Email is already registered');
+    const emailLower = dto.email.toLowerCase();
 
+    const existingUser = await this.prisma.user.findUnique({ where: { email: emailLower } });
     const existingBiz = await this.prisma.business.findUnique({ where: { businessIdentifier: dto.businessIdentifier } });
-    if (existingBiz) throw new BadRequestException('Business identifier is already registered');
+
+    // Caso: cuenta eliminada — restaurar en lugar de rechazar
+    const isDeletedUser = existingUser?.deletedAt != null;
+    const isDeletedBiz = existingBiz?.deletedAt != null;
+
+    if (existingUser && !isDeletedUser) throw new BadRequestException('Email is already registered');
+    if (existingBiz && !isDeletedBiz) throw new BadRequestException('Business identifier is already registered');
 
     const password = await argon2.hash(dto.password);
 
+    if (isDeletedUser || isDeletedBiz) {
+      // Restaurar la cuenta eliminada con los nuevos datos
+      const result = await this.prisma.$transaction(async (tx) => {
+        const bizId = existingBiz?.id ?? existingUser?.businessId;
+        if (!bizId) throw new BadRequestException('Cannot restore account: business data missing');
+
+        const business = await tx.business.update({
+          where: { id: bizId },
+          data: {
+            companyName: dto.companyName,
+            address: dto.address,
+            industry: dto.industry ?? 'Licorería/Bodega',
+            fiscalData: dto.fiscalData as Prisma.InputJsonValue | undefined,
+            logo: dto.logo,
+            deletedAt: null,
+            verificationStatus: VerificationStatus.PENDING,
+            rejectionReason: null,
+            version: { increment: 1 },
+          },
+        });
+
+        const userId = existingUser?.id;
+        let user: User;
+        if (userId) {
+          user = await tx.user.update({
+            where: { id: userId },
+            data: {
+              firstName: dto.firstName,
+              lastName: dto.lastName,
+              phone: dto.phone,
+              password,
+              deletedAt: null,
+              status: UserStatus.PENDING,
+              isVerified: false,
+              businessId: bizId,
+              version: { increment: 1 },
+            },
+          });
+        } else {
+          user = await tx.user.create({
+            data: {
+              firstName: dto.firstName,
+              lastName: dto.lastName,
+              email: emailLower,
+              phone: dto.phone,
+              password,
+              role: UserRole.BUSINESS_OWNER,
+              status: UserStatus.PENDING,
+              isVerified: false,
+              businessId: bizId,
+            },
+          });
+        }
+
+        return { user, business };
+      });
+
+      await this.audit.record({
+        userId: result.user.id,
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent,
+        actionType: 'AUTH_REGISTER_BUSINESS_OWNER',
+        entityAffected: 'User',
+        entityId: result.user.id,
+        metadata: { businessId: result.business.id, restored: true },
+      });
+
+      return {
+        message: 'Tu cuenta ha sido reactivada. Un administrador revisará tu solicitud.',
+        userId: result.user.id,
+        businessId: result.business.id,
+        status: 'PENDING',
+        restored: true,
+      };
+    }
+
+    // Registro normal — cuenta nueva
     const result = await this.prisma.$transaction(async (tx) => {
       const business = await tx.business.create({
         data: {
@@ -96,7 +179,7 @@ export class AuthService {
         data: {
           firstName: dto.firstName,
           lastName: dto.lastName,
-          email: dto.email.toLowerCase(),
+          email: emailLower,
           phone: dto.phone,
           password,
           role: UserRole.BUSINESS_OWNER,

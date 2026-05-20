@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -83,5 +83,12 @@ export class ProductsController {
   @ApiOperation({ summary: 'Archivar producto. BUSINESS_OWNER solo el suyo.' })
   archive(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.productsService.archive(id, user);
+  }
+
+  @Delete(':id')
+  @Roles(UserRole.ADMIN, UserRole.BUSINESS_OWNER)
+  @ApiOperation({ summary: 'Eliminar producto (soft delete). BUSINESS_OWNER solo el suyo.' })
+  softDelete(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.productsService.softDelete(id, user);
   }
 }

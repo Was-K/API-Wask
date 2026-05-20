@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { UserRole, VerificationStatus } from '@prisma/client';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -25,14 +25,16 @@ export class BusinessController {
 
   @Get()
   @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: 'Listar negocios (solo ADMIN). Filtrar por verificationStatus o búsqueda' })
+  @ApiOperation({ summary: 'Listar negocios (solo ADMIN). Filtrar por verificationStatus, búsqueda o deleted=true' })
   @ApiQuery({ name: 'verificationStatus', enum: VerificationStatus, required: false })
   @ApiQuery({ name: 'q', required: false })
+  @ApiQuery({ name: 'deleted', required: false, type: Boolean })
   findMany(
     @Query('verificationStatus') verificationStatus?: VerificationStatus,
     @Query('q') q?: string,
+    @Query('deleted') deleted?: string,
   ) {
-    return this.businessService.findMany(verificationStatus, q);
+    return this.businessService.findMany(verificationStatus, q, deleted === 'true');
   }
 
   @Get('my-business')
@@ -68,5 +70,26 @@ export class BusinessController {
   @ApiOperation({ summary: 'Rechazar negocio con motivo' })
   reject(@Param('id') id: string, @Body() dto: RejectBusinessDto) {
     return this.businessService.reject(id, dto);
+  }
+
+  @Delete('my-business')
+  @Roles(UserRole.BUSINESS_OWNER)
+  @ApiOperation({ summary: 'El BUSINESS_OWNER elimina su propio negocio (soft delete)' })
+  deleteMyBusiness(@CurrentUser() user: AuthenticatedUser) {
+    return this.businessService.deleteMyBusiness(user.sub);
+  }
+
+  @Delete(':id')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'ADMIN elimina cualquier negocio (soft delete)' })
+  deleteByAdmin(@Param('id') id: string) {
+    return this.businessService.deleteByAdmin(id);
+  }
+
+  @Post(':id/restore')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'ADMIN restaura un negocio eliminado (vuelve a PENDING para re-aprobación)' })
+  restore(@Param('id') id: string) {
+    return this.businessService.restore(id);
   }
 }

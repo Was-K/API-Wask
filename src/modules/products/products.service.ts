@@ -212,4 +212,16 @@ export class ProductsService {
       data: { status: ProductStatus.ARCHIVED, version: { increment: 1 } },
     });
   }
+
+  async softDelete(id: string, currentUser: AuthenticatedUser) {
+    const product = await this.prisma.product.findFirst({ where: { id, deletedAt: null } });
+    if (!product) throw new NotFoundException('Product not found');
+    if (currentUser.role === UserRole.BUSINESS_OWNER && product.businessId !== currentUser.businessId) {
+      throw new ForbiddenException('You can only delete your own products');
+    }
+    return this.prisma.product.update({
+      where: { id },
+      data: { deletedAt: new Date(), version: { increment: 1 } },
+    });
+  }
 }
