@@ -131,6 +131,34 @@ export class ProductsService {
     });
   }
 
+  async findOne(id: string, currentUser: AuthenticatedUser) {
+    const product = await this.prisma.product.findFirst({
+      where: { id, deletedAt: null },
+      include: { business: { select: { id: true, companyName: true } } },
+    });
+    if (!product) throw new NotFoundException('Product not found');
+
+    // CUSTOMER solo ve productos publicados (APPROVED + ACTIVE).
+    if (currentUser.role === UserRole.CUSTOMER) {
+      if (
+        product.status !== ProductStatus.ACTIVE ||
+        product.approvalStatus !== ProductApprovalStatus.APPROVED
+      ) {
+        throw new NotFoundException('Product not found');
+      }
+    }
+
+    // BUSINESS_OWNER solo puede ver los suyos.
+    if (
+      currentUser.role === UserRole.BUSINESS_OWNER &&
+      product.businessId !== currentUser.businessId
+    ) {
+      throw new ForbiddenException('You can only view your own products');
+    }
+
+    return product;
+  }
+
   async update(id: string, dto: UpdateProductDto, currentUser: AuthenticatedUser) {
     const product = await this.prisma.product.findFirst({ where: { id, deletedAt: null } });
     if (!product) throw new NotFoundException('Product not found');

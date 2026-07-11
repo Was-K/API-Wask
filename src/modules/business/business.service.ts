@@ -1,5 +1,5 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, UserStatus, VerificationStatus } from '@prisma/client';
+import { OperationalStatus, Prisma, UserStatus, VerificationStatus } from '@prisma/client';
 import { PrismaService } from '../../common/database/prisma.service';
 import { CreateBusinessDto, RejectBusinessDto, UpdateBusinessDto } from './dto/business.dto';
 
@@ -28,6 +28,60 @@ export class BusinessService {
         users: { select: { id: true, email: true, role: true, status: true } },
       },
     });
+  }
+
+  /** Campos públicos de una tienda (sin datos fiscales ni usuarios). */
+  private static readonly SHOP_PUBLIC_SELECT = {
+    id: true,
+    companyName: true,
+    industry: true,
+    logo: true,
+    address: true,
+    phone: true,
+    latitude: true,
+    longitude: true,
+    operationalStatus: true,
+  } as const;
+
+  /** Listado público de tiendas para el CUSTOMER: solo VERIFIED + operativas. */
+  findShops(q?: string) {
+    return this.prisma.business.findMany({
+      where: {
+        deletedAt: null,
+        verificationStatus: VerificationStatus.VERIFIED,
+        operationalStatus: OperationalStatus.ACTIVE,
+        companyName: q ? { contains: q, mode: 'insensitive' } : undefined,
+      },
+      select: BusinessService.SHOP_PUBLIC_SELECT,
+      orderBy: { companyName: 'asc' },
+    });
+  }
+
+  /** Detalle público de una tienda para el CUSTOMER. */
+  async findShopById(id: string) {
+    const shop = await this.prisma.business.findFirst({
+      where: {
+        id,
+        deletedAt: null,
+        verificationStatus: VerificationStatus.VERIFIED,
+        operationalStatus: OperationalStatus.ACTIVE,
+      },
+      select: BusinessService.SHOP_PUBLIC_SELECT,
+    });
+    if (!shop) throw new NotFoundException('Shop not found');
+    return shop;
+  }
+
+  /** Detalle completo de un negocio (solo ADMIN). */
+  async findOne(id: string) {
+    const business = await this.prisma.business.findFirst({
+      where: { id, deletedAt: null },
+      include: {
+        users: { select: { id: true, email: true, role: true, status: true } },
+      },
+    });
+    if (!business) throw new NotFoundException('Business not found');
+    return business;
   }
 
   async findMyBusiness(userId: string) {

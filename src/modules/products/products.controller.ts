@@ -53,6 +53,13 @@ export class ProductsController {
     return this.productsService.findPendingApproval();
   }
 
+  @Get(':id')
+  @Roles(UserRole.ADMIN, UserRole.BUSINESS_OWNER, UserRole.CUSTOMER)
+  @ApiOperation({ summary: 'Ver un producto. CUSTOMER solo APPROVED+ACTIVE. BUSINESS_OWNER solo el suyo.' })
+  findOne(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.productsService.findOne(id, user);
+  }
+
   @Patch(':id')
   @Roles(UserRole.ADMIN, UserRole.BUSINESS_OWNER)
   @ApiOperation({ summary: 'Editar producto. Si BUSINESS_OWNER edita campos sensibles, vuelve a PENDING.' })

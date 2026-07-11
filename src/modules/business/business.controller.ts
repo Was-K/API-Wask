@@ -37,11 +37,33 @@ export class BusinessController {
     return this.businessService.findMany(verificationStatus, q, deleted === 'true');
   }
 
+  @Get('shops')
+  @Roles(UserRole.CUSTOMER, UserRole.ADMIN, UserRole.BUSINESS_OWNER)
+  @ApiOperation({ summary: 'Listado público de tiendas (VERIFIED + ACTIVE) para la app del cliente' })
+  @ApiQuery({ name: 'q', required: false })
+  findShops(@Query('q') q?: string) {
+    return this.businessService.findShops(q);
+  }
+
+  @Get('shops/:id')
+  @Roles(UserRole.CUSTOMER, UserRole.ADMIN, UserRole.BUSINESS_OWNER)
+  @ApiOperation({ summary: 'Detalle público de una tienda para la app del cliente' })
+  findShopById(@Param('id') id: string) {
+    return this.businessService.findShopById(id);
+  }
+
   @Get('my-business')
   @Roles(UserRole.BUSINESS_OWNER)
   @ApiOperation({ summary: 'Ver el negocio del BUSINESS_OWNER autenticado' })
   findMyBusiness(@CurrentUser() user: AuthenticatedUser) {
     return this.businessService.findMyBusiness(user.sub);
+  }
+
+  @Get(':id')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Detalle completo de un negocio (solo ADMIN)' })
+  findOne(@Param('id') id: string) {
+    return this.businessService.findOne(id);
   }
 
   @Patch('my-business')
